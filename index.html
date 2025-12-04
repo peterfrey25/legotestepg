@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulador de Lego 24x24</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .grid-board {
+      display: grid;
+      grid-template-columns: repeat(24, 24px);
+      grid-template-rows: repeat(24, 24px);
+      gap: 1px;
+    }
+    .cell {
+      width: 24px;
+      height: 24px;
+      background: #f1f1f1;
+      border: 1px solid #ddd;
+      box-sizing: border-box;
+    }
+    .piece-preview {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+
+  <h1 class="text-2xl font-bold mb-4">Simulador de Lego 24x24</h1>
+
+  <div class="flex gap-8">
+    <!-- Painel de Peças -->
+    <div class="bg-white p-4 rounded-2xl shadow w-64">
+      <h2 class="font-semibold mb-3">Peças 2x2</h2>
+      <button id="eraseBtn" class="mb-4 w-full bg-red-500 text-white py-2 rounded-xl">Modo Apagar: DESLIGADO</button>
+      <div id="palette" class="space-y-3"></div>
+    </div>
+
+    <!-- Tabuleiro -->
+    <div class="bg-white p-4 rounded-2xl shadow">
+      <div id="board" class="grid-board"></div>
+    </div>
+  </div>
+
+  <script>
+    const board = document.getElementById('board');
+    const palette = document.getElementById('palette');
+
+    // Criar tabuleiro 24x24
+    const grid = [];
+    const boardState = Array(24 * 24).fill(null); // guarda o ID da peça em cada célula
+    let pieceIdCounter = 1;
+    const pieceColorById = {};
+
+    for (let i = 0; i < 24 * 24; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      board.appendChild(cell);
+      grid.push(cell);
+    }
+
+    // Peças e limites
+    const piecesData = [
+      { name: 'Amarelo', color: 'yellow', count: 20 },
+      { name: 'Vermelho', color: 'red', count: 40 },
+      { name: 'Preto', color: 'black', count: 40 },
+      { name: 'Verde', color: 'green', count: 40 },
+      { name: 'Azul', color: 'blue', count: 30 },
+      { name: 'Marrom', color: 'brown', count: 10 },
+    ];
+
+    let selectedPiece = null;
+    let eraseMode = false;
+
+    const eraseBtn = document.getElementById('eraseBtn');
+    eraseBtn.onclick = () => {
+      eraseMode = !eraseMode;
+      eraseBtn.textContent = eraseMode ? 'Modo Apagar: LIGADO' : 'Modo Apagar: DESLIGADO';
+      eraseBtn.className = eraseMode
+        ? 'mb-4 w-full bg-red-700 text-white py-2 rounded-xl'
+        : 'mb-4 w-full bg-red-500 text-white py-2 rounded-xl';
+      selectedPiece = null;
+    };
+
+    function renderPalette() {
+      palette.innerHTML = '';
+
+      piecesData.forEach((piece, index) => {
+        const container = document.createElement('div');
+        container.className = 'flex items-center gap-3 cursor-pointer';
+
+        const preview = document.createElement('div');
+        preview.className = 'piece-preview rounded';
+        preview.style.background = piece.color;
+
+        const info = document.createElement('div');
+        info.innerHTML = `<div class="font-medium">${piece.name}</div><div class="text-sm">Restantes: ${piece.count}</div>`;
+
+        container.onclick = () => selectedPiece = index;
+
+        container.appendChild(preview);
+        container.appendChild(info);
+        palette.appendChild(container);
+      });
+    }
+
+    renderPalette();
+
+    // Clique no tabuleiro para posicionar peça 2x2
+    grid.forEach((cell, index) => {
+      cell.addEventListener('click', () => {
+        const row = Math.floor(index / 24);
+        const col = index % 24;
+
+        // Verifica limite 2x2
+        if (col === 23 || row === 23) return;
+
+        const indices = [
+          index,
+          index + 1,
+          index + 24,
+          index + 25
+        ];
+
+        // MODO APAGAR
+        if (eraseMode) {
+          const pid = boardState[index];
+          if (!pid) return;
+
+          // Remove TODA a peça 2x2 identificada pelo mesmo ID
+          boardState.forEach((val, i) => {
+            if (val === pid) {
+              grid[i].style.background = '';
+              grid[i].style.border = '1px solid #ddd';
+              boardState[i] = null;
+            }
+          });
+          return;
+        }
+
+        if (selectedPiece === null) return;
+
+        const piece = piecesData[selectedPiece];
+        if (piece.count <= 0) return;
+
+        // Verifica se está vazio
+        if (indices.some(i => grid[i].style.background !== '')) return;
+
+        const newId = pieceIdCounter++;
+        pieceColorById[newId] = piece.color;
+
+        indices.forEach(i => {
+          grid[i].style.background = piece.color;
+          grid[i].style.border = '1px solid black';
+          boardState[i] = newId; // todas as 4 células recebem o mesmo ID
+        });
+        piece.count--;
+        renderPalette();
+      });
+    });
+  </script>
+
+</body>
+</html>
