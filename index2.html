@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Simulador de Lego 48x48</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    :root {
+      --board-size: 48;
+      --cell-size: 18px;
+    }
+    .grid-board {
+      display: grid;
+      grid-template-columns: repeat(var(--board-size), var(--cell-size));
+      grid-template-rows: repeat(var(--board-size), var(--cell-size));
+      gap: 0; /* sem gap para permitir borda contínua */
+    }
+    .cell {
+      width: var(--cell-size);
+      height: var(--cell-size);
+      background: #f1f1f1;
+      border: 1px solid #ddd; /* borda base clara */
+      box-sizing: border-box;
+    }
+    .piece-preview {
+      width: 48px;
+      height: 48px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      grid-template-rows: repeat(2, 1fr);
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+
+  <h1 class="text-2xl font-bold mb-2">Simulador de Lego 48x48</h1>
+  <p class="text-sm text-gray-600 mb-4">Clique esquerdo: colocar peça • Clique direito: apagar peça inteira</p>
+
+  <div class="flex gap-8 w-full justify-center">
+    <!-- Painel de Peças -->
+    <div class="bg-white p-4 rounded-2xl shadow w-64">
+      <h2 class="font-semibold mb-3">Peças 2x2</h2>
+      <div id="palette" class="space-y-3"></div>
+    </div>
+
+    <!-- Tabuleiro -->
+    <div class="bg-white p-4 rounded-2xl shadow overflow-auto max-w-[75vw] max-h-[80vh]">
+      <div id="board" class="grid-board"></div>
+    </div>
+  </div>
+
+  <script>
+    const BOARD_SIZE = 48;
+
+    const board = document.getElementById('board');
+    const palette = document.getElementById('palette');
+
+    // Criar tabuleiro 48x48
+    const grid = [];
+    const boardState = Array(BOARD_SIZE * BOARD_SIZE).fill(null); // guarda o ID da peça em cada célula
+    let pieceIdCounter = 1;
+
+    for (let i = 0; i < BOARD_SIZE * BOARD_SIZE; i++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      board.appendChild(cell);
+      grid.push(cell);
+    }
+
+    // Peças e limites
+    const piecesData = [
+      { name: 'Amarelo', color: 'yellow', count: 20 },
+      { name: 'Vermelho', color: 'red', count: 40 },
+      { name: 'Preto', color: 'black', count: 40 },
+      { name: 'Verde', color: 'green', count: 40 },
+      { name: 'Azul', color: 'blue', count: 30 },
+      { name: 'Marrom', color: 'brown', count: 10 },
+    ];
+
+    let selectedPiece = null;
+
+    function renderPalette() {
+      palette.innerHTML = '';
+
+      piecesData.forEach((piece, index) => {
+        const container = document.createElement('div');
+        container.className = 'flex items-center gap-3 cursor-pointer';
+
+        const preview = document.createElement('div');
+        preview.className = 'piece-preview rounded';
+        preview.style.background = piece.color;
+
+        const info = document.createElement('div');
+        info.innerHTML = `<div class=\"font-medium\">${piece.name}</div><div class=\"text-sm\">Restantes: ${piece.count}</div>`;
+
+        container.onclick = () => selectedPiece = index;
+
+        container.appendChild(preview);
+        container.appendChild(info);
+        palette.appendChild(container);
+      });
+    }
+
+    renderPalette();
+
+    // Helper: reseta borda de uma célula para padrão
+    function resetCell(i) {
+      grid[i].style.background = '';
+      grid[i].style.border = '1px solid #ddd';
+      boardState[i] = null;
+    }
+
+    // Helper: apaga peça inteira pelo piece id
+    function erasePieceById(pid) {
+      if (!pid) return;
+      boardState.forEach((val, i) => {
+        if (val === pid) {
+          resetCell(i);
+        }
+      });
+    }
+
+    // Aplica APENAS a borda externa do bloco 2x2
+    function applyOuterBorder(baseIndex) {
+      const topLeft = baseIndex;
+      const topRight = baseIndex + 1;
+      const bottomLeft = baseIndex + BOARD_SIZE;
+      const bottomRight = baseIndex + BOARD_SIZE + 1;
+
+      // Topo
+      grid[topLeft].style.borderTop = '1px solid black';
+      grid[topRight].style.borderTop = '1px solid black';
+
+      // Base
+      grid[bottomLeft].style.borderBottom = '1px solid black';
+      grid[bottomRight].style.borderBottom = '1px solid black';
+
+      // Esquerda
+      grid[topLeft].style.borderLeft = '1px solid black';
+      grid[bottomLeft].style.borderLeft = '1px solid black';
+
+      // Direita
+      grid[topRight].style.borderRight = '1px solid black';
+      grid[bottomRight].style.borderRight = '1px solid black';
+    }
+
+    // Clique no tabuleiro para posicionar peça 2x2
+    grid.forEach((cell, index) => {
+      // Clique esquerdo: colocar peça
+      cell.addEventListener('click', () => {
+        const row = Math.floor(index / BOARD_SIZE);
+        const col = index % BOARD_SIZE;
+
+        // Verifica limite 2x2 (não permite colocar se estiver na última linha/coluna)
+        if (col === BOARD_SIZE - 1 || row === BOARD_SIZE - 1) return;
+
+        const indices = [
+          index,
+          index + 1,
+          index + BOARD_SIZE,
+          index + BOARD_SIZE + 1
+        ];
+
+        if (selectedPiece === null) return;
+
+        const piece = piecesData[selectedPiece];
+        if (piece.count <= 0) return;
+
+        // Verifica se está vazio
+        if (indices.some(i => boardState[i] !== null)) return;
+
+        const newId = pieceIdCounter++;
+
+        // Aplica cor e borda base clara primeiro
+        indices.forEach(i => {
+          grid[i].style.background = piece.color;
+          grid[i].style.border = '1px solid #ddd';
+          boardState[i] = newId;
+        });
+
+        // Aplica SOMENTE a borda externa preta do 2x2
+        applyOuterBorder(index);
+
+        piece.count--;
+        renderPalette();
+      });
+
+      // Clique DIREITO: apagar peça inteira automaticamente
+      cell.addEventListener('contextmenu', (e) => {
+        e.preventDefault(); // impede menu do navegador
+
+        const pid = boardState[index];
+        if (!pid) return;
+
+        erasePieceById(pid);
+      });
+    });
+
+    // ==========================
+    // Testes básicos (sanity check)
+    // ==========================
+    console.assert(grid.length === BOARD_SIZE * BOARD_SIZE, 'Erro: quantidade de células incorreta');
+    console.assert(boardState.length === BOARD_SIZE * BOARD_SIZE, 'Erro: boardState com tamanho errado');
+  </script>
+
+</body>
+</html>
